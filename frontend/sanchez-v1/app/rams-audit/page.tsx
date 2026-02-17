@@ -61,7 +61,7 @@ export default function RAMSAuditor() {
       formData.append("file", file)
 
       // Assuming the backend is running on localhost:8000
-      const response = await fetch("http://localhost:8000/audit", {
+      const response = await fetch("https://sanchez-v1.onrender.com/audit", {
         method: "POST",
         body: formData,
       })

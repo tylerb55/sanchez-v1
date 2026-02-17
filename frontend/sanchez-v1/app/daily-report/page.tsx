@@ -166,7 +166,7 @@ export default function DailyReportPage() {
         formData.append("file", imageFile)
       }
 
-      const response = await fetch("http://localhost:8000/reporting", {
+      const response = await fetch("https://sanchez-v1.onrender.com/reporting", {
         method: "POST",
         body: formData,
       })

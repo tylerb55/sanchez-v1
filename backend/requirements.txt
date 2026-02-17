@@ -8,3 +8,4 @@ langchain-community
 qdrant-client
 python-dotenv
 pdfplumber
+gunicorn
