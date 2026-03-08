@@ -10,6 +10,7 @@ import tempfile
 import shutil
 import os
 from helpers import parse_pdf_to_markdown
+from supabase_client import supabase
 
 app = FastAPI()
 
@@ -96,3 +97,28 @@ async def reporting(
                 yield f"data: {json.dumps(event)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@app.get("/projects")
+async def get_projects():
+    try:
+        response = supabase.table("projects").select("*").execute()
+        print("Projects:", response.data)
+        return response.data
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/projects/{project_id}/files")
+async def get_project_files(project_id: str):
+    try:
+        response = supabase.table("project_files").select("*").eq("project_id", project_id).execute()
+        return response.data
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/projects/{project_id}/delays")
+async def get_project_delays(project_id: str):
+    try:
+        response = supabase.table("project_delays").select("*").eq("project_id", project_id).execute()
+        return response.data
+    except Exception as e:
+        return {"error": str(e)}

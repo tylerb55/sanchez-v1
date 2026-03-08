@@ -9,3 +9,4 @@ qdrant-client
 python-dotenv
 pdfplumber
 gunicorn
+supabase

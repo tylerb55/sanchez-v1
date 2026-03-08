@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Mic, MicOff, Send, FileText, Loader2, AlertCircle, CheckCircle2, ArrowLeft, Save, FileJson, FileType } from "lucide-react"
+import { Mic, MicOff, Send, FileText, Loader2, AlertCircle, CheckCircle2, ArrowLeft, Save, FileJson, FileType, File as FileIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -20,6 +20,22 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 interface SpeechRecognitionAlternative {
   transcript: string;
@@ -64,6 +80,30 @@ declare global {
   }
 }
 
+interface Project {
+  id: string
+  name: string
+  description: string
+  location: string
+  start_date: string
+  end_date: string
+}
+
+interface ProjectFile {
+  id: string
+  file_type: string
+  content: string
+  uploaded_at: string
+}
+
+interface ProjectDelay {
+  id: string
+  date: string
+  description: string
+  impact_days: number
+  status: string
+}
+
 export default function DailyReportPage() {
   const [reportText, setReportText] = useState("")
   const [isRecording, setIsRecording] = useState(false)
@@ -71,8 +111,72 @@ export default function DailyReportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [results, setResults] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
+  
+  // New state for projects
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("")
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([])
+  const [projectDelays, setProjectDelays] = useState<ProjectDelay[]>([])
+  const [isLoadingProjectData, setIsLoadingProjectData] = useState(false)
+
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const resultsEndRef = useRef<HTMLDivElement>(null)
+
+  // Fetch projects on mount
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/projects")
+        if (response.ok) {
+          const data = await response.json()
+          if (Array.isArray(data)) {
+            console.log("Projects:", data)
+            setProjects(data)
+            if (data.length > 0 && !selectedProjectId) {
+              setSelectedProjectId(data[0].id)
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch projects:", err)
+      }
+    }
+    fetchProjects()
+  }, [])
+
+  // Fetch project details when selected
+  useEffect(() => {
+    if (!selectedProjectId) {
+        setProjectFiles([])
+        setProjectDelays([])
+        return
+    }
+
+    const fetchProjectData = async () => {
+        setIsLoadingProjectData(true)
+        try {
+            const [filesRes, delaysRes] = await Promise.all([
+                fetch(`http://localhost:8000/projects/${selectedProjectId}/files`),
+                fetch(`http://localhost:8000/projects/${selectedProjectId}/delays`)
+            ])
+
+            if (filesRes.ok) {
+                const files = await filesRes.json()
+                setProjectFiles(Array.isArray(files) ? files : [])
+            }
+            if (delaysRes.ok) {
+                const delays = await delaysRes.json()
+                setProjectDelays(Array.isArray(delays) ? delays : [])
+            }
+        } catch (err) {
+            console.error("Failed to fetch project data:", err)
+        } finally {
+            setIsLoadingProjectData(false)
+        }
+    }
+
+    fetchProjectData()
+  }, [selectedProjectId])
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -166,7 +270,7 @@ export default function DailyReportPage() {
         formData.append("file", imageFile)
       }
 
-      const response = await fetch("https://sanchez-v1.onrender.com/reporting", {
+      const response = await fetch("http://localhost:8000/reporting", {
         method: "POST",
         body: formData,
       })
@@ -262,8 +366,8 @@ export default function DailyReportPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-8 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto">
+        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
                 <Link href="/">
                     <Button variant="ghost" size="icon">
@@ -274,6 +378,21 @@ export default function DailyReportPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Site Daily Report</h1>
                     <p className="text-muted-foreground">Record daily activities, issues, and progress.</p>
                 </div>
+            </div>
+            
+            <div className="w-full md:w-[300px]">
+                <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select Project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {projects.map(project => (
+                            <SelectItem key={project.id} value={project.id}>
+                                {project.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
         </header>
 
@@ -356,11 +475,15 @@ export default function DailyReportPage() {
           </Card>
 
           {/* Results Section */}
-          <Card className="flex flex-col h-full border-l-4 border-l-primary/20">
+          <Card className="flex flex-col h-full border-l-4 border-l-primary/20 overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="space-y-1">
-                    <CardTitle>Agent Analysis</CardTitle>
-                    <CardDescription>Real-time feedback and project impact assessment.</CardDescription>
+                    <CardTitle>Project Dashboard</CardTitle>
+                    <CardDescription>
+                        {selectedProjectId 
+                            ? projects.find(p => p.id === selectedProjectId)?.description 
+                            : "Select a project to view details and analysis."}
+                    </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                     <DropdownMenu>
@@ -384,51 +507,135 @@ export default function DailyReportPage() {
                 </div>
             </CardHeader>
             <Separator />
-            <CardContent className="flex-1 p-0 relative min-h-[300px]">
-               <ScrollArea className="h-full w-full p-6 max-h-[600px]">
-                {results ? (
-                    <div id="report-results" className="prose dark:prose-invert max-w-none text-sm p-4 bg-background">
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            h1: ({node: _, ...props}) => <h1 className="text-xl font-bold mt-6 mb-4" {...props} />,
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            h2: ({node: _, ...props}) => <h2 className="text-lg font-bold mt-5 mb-3" {...props} />,
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            h3: ({node: _, ...props}) => <h3 className="text-base font-bold mt-4 mb-2" {...props} />,
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            ul: ({node: _, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            ol: ({node: _, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-1" {...props} />,
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            li: ({node: _, ...props}) => <li className="mb-1" {...props} />,
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            p: ({node: _, ...props}) => <p className="mb-4 leading-relaxed" {...props} />,
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            blockquote: ({node: _, ...props}) => <blockquote className="border-l-4 border-primary/20 pl-4 italic my-4" {...props} />,
-                          }}
-                        >
-                            {results}
-                        </ReactMarkdown>
-                        <div ref={resultsEndRef} />
+            <CardContent className="flex-1 p-0 relative min-h-[500px]">
+                <Tabs defaultValue="analysis" className="h-full flex flex-col">
+                    <div className="px-6 pt-4">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="analysis">Analysis</TabsTrigger>
+                            <TabsTrigger value="files" disabled={!selectedProjectId}>Related Files</TabsTrigger>
+                            <TabsTrigger value="delays" disabled={!selectedProjectId}>Delays</TabsTrigger>
+                        </TabsList>
                     </div>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center opacity-50">
-                        {isSubmitting ? (
+                    
+                    <TabsContent value="analysis" className="flex-1 p-0 m-0 h-full">
+                        <ScrollArea className="h-full w-full p-6 max-h-[600px]">
+                            {results ? (
+                                <div id="report-results" className="prose dark:prose-invert max-w-none text-sm p-4 bg-background">
+                                    <ReactMarkdown 
+                                      remarkPlugins={[remarkGfm]}
+                                      components={{
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        h1: ({node: _, ...props}) => <h1 className="text-xl font-bold mt-6 mb-4" {...props} />,
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        h2: ({node: _, ...props}) => <h2 className="text-lg font-bold mt-5 mb-3" {...props} />,
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        h3: ({node: _, ...props}) => <h3 className="text-base font-bold mt-4 mb-2" {...props} />,
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        ul: ({node: _, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        ol: ({node: _, ...props}) => <ol className="list-decimal pl-5 mb-4 space-y-1" {...props} />,
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        li: ({node: _, ...props}) => <li className="mb-1" {...props} />,
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        p: ({node: _, ...props}) => <p className="mb-4 leading-relaxed" {...props} />,
+                                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                        blockquote: ({node: _, ...props}) => <blockquote className="border-l-4 border-primary/20 pl-4 italic my-4" {...props} />,
+                                      }}
+                                    >
+                                        {results}
+                                    </ReactMarkdown>
+                                    <div ref={resultsEndRef} />
+                                </div>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center opacity-50">
+                                    {isSubmitting ? (
+                                        <div className="space-y-4">
+                                            <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
+                                            <p>Analyzing report data...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <FileText className="h-12 w-12 mb-3 mx-auto" />
+                                            <p>Submit a report to see agent analysis here.</p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </TabsContent>
+
+                    <TabsContent value="files" className="flex-1 p-6 m-0 h-full">
+                        {isLoadingProjectData ? (
+                            <div className="flex justify-center items-center h-40">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : projectFiles.length > 0 ? (
                             <div className="space-y-4">
-                                <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
-                                <p>Analyzing report data...</p>
+                                {projectFiles.map(file => (
+                                    <Card key={file.id}>
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-base flex items-center gap-2">
+                                                <FileIcon className="h-4 w-4 text-primary" />
+                                                {file.file_type}
+                                            </CardTitle>
+                                            <CardDescription className="text-xs">
+                                                Uploaded: {new Date(file.uploaded_at).toLocaleDateString()}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="text-sm bg-muted/30 p-4 mx-4 mb-4 rounded-md whitespace-pre-wrap font-mono">
+                                            {file.content}
+                                        </CardContent>
+                                    </Card>
+                                ))}
                             </div>
                         ) : (
-                            <>
-                                <FileText className="h-12 w-12 mb-3 mx-auto" />
-                                <p>Submit a report to see agent analysis here.</p>
-                            </>
+                            <div className="text-center text-muted-foreground py-10">
+                                No files found for this project.
+                            </div>
                         )}
-                    </div>
-                )}
-               </ScrollArea>
+                    </TabsContent>
+
+                    <TabsContent value="delays" className="flex-1 p-6 m-0 h-full">
+                         {isLoadingProjectData ? (
+                            <div className="flex justify-center items-center h-40">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : projectDelays.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead>Impact</TableHead>
+                                        <TableHead>Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {projectDelays.map(delay => (
+                                        <TableRow key={delay.id}>
+                                            <TableCell className="font-medium">{delay.date}</TableCell>
+                                            <TableCell>{delay.description}</TableCell>
+                                            <TableCell>{delay.impact_days} days</TableCell>
+                                            <TableCell>
+                                                <span className={`px-2 py-1 rounded-full text-xs ${
+                                                    delay.status === 'Resolved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' :
+                                                    delay.status === 'Mitigated' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100' :
+                                                    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                                                }`}>
+                                                    {delay.status}
+                                                </span>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        ) : (
+                            <div className="text-center text-muted-foreground py-10">
+                                No delays recorded for this project.
+                            </div>
+                        )}
+                    </TabsContent>
+                </Tabs>
             </CardContent>
           </Card>
         </div>
