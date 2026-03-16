@@ -203,9 +203,9 @@ export default function RAMSAuditor() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto h-[calc(100vh-12rem)]">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 max-w-7xl mx-auto lg:h-[calc(100vh-12rem)]">
         {/* Left Panel: Upload */}
-        <Card className="lg:col-span-1 flex flex-col h-full">
+        <Card className="lg:col-span-1 flex flex-col h-auto lg:h-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Upload className="h-5 w-5" />
@@ -273,7 +273,7 @@ export default function RAMSAuditor() {
         </Card>
 
         {/* Right Panel: Results */}
-        <Card className="lg:col-span-2 flex flex-col h-full overflow-hidden">
+        <Card className="lg:col-span-2 flex flex-col min-h-[500px] lg:min-h-0 lg:h-full overflow-hidden">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div className="space-y-1">
               <CardTitle className="text-xl">Audit Results</CardTitle>
