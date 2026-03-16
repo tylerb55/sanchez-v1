@@ -47,8 +47,8 @@ async def audit_rams(file: UploadFile):
             {"rams_text": rams_text}, 
             stream_mode="updates" # Streams as each node finishes
         ):
-            # Only stream the last 2 nodes (audit and edit)
-            if "audit" in event or "edit" in event:
+            # Only stream the last node (audit)
+            if "audit" in event:
                 yield f"data: {json.dumps(event)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

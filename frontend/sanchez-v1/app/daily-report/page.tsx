@@ -126,7 +126,7 @@ export default function DailyReportPage() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch("http://localhost:8000/projects")
+        const response = await fetch("https://sanchez-v1.onrender.com/projects")
         if (response.ok) {
           const data = await response.json()
           if (Array.isArray(data)) {
@@ -156,8 +156,8 @@ export default function DailyReportPage() {
         setIsLoadingProjectData(true)
         try {
             const [filesRes, delaysRes] = await Promise.all([
-                fetch(`http://localhost:8000/projects/${selectedProjectId}/files`),
-                fetch(`http://localhost:8000/projects/${selectedProjectId}/delays`)
+                fetch(`https://sanchez-v1.onrender.com/projects/${selectedProjectId}/files`),
+                fetch(`https://sanchez-v1.onrender.com/projects/${selectedProjectId}/delays`)
             ])
 
             if (filesRes.ok) {
@@ -270,7 +270,7 @@ export default function DailyReportPage() {
         formData.append("file", imageFile)
       }
 
-      const response = await fetch("http://localhost:8000/reporting", {
+      const response = await fetch("https://sanchez-v1.onrender.com/reporting", {
         method: "POST",
         body: formData,
       })

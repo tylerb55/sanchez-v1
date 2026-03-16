@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { Upload, FileText, Save, Loader2, Trash2, AlertCircle, ArrowLeft, FileJson, FileType, CheckCircle2 } from "lucide-react"
+import { Upload, FileText, Save, Loader2, Trash2, AlertCircle, ArrowLeft, FileJson, FileType } from "lucide-react"
 import Link from "next/link"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -14,15 +14,11 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
@@ -30,12 +26,9 @@ import {
 export default function RAMSAuditor() {
   const [file, setFile] = useState<File | null>(null)
   const [auditResults, setAuditResults] = useState<string>("")
-  const [editResults, setEditResults] = useState<string>("")
-  const [activeTab, setActiveTab] = useState<string>("audit")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const auditEndRef = useRef<HTMLDivElement>(null)
-  const editEndRef = useRef<HTMLDivElement>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -43,15 +36,12 @@ export default function RAMSAuditor() {
       setError(null)
       // Clear results on new upload
       setAuditResults("")
-      setEditResults("")
-      setActiveTab("audit")
     }
   }
 
   const handleClear = () => {
     setFile(null)
     setAuditResults("")
-    setEditResults("")
     setError(null)
     // Reset file input value
     const fileInput = document.getElementById("file-upload") as HTMLInputElement
@@ -67,16 +57,12 @@ export default function RAMSAuditor() {
     setIsLoading(true)
     setError(null)
     setAuditResults("")
-    setEditResults("")
-    setActiveTab("audit")
     
-    let hasSwitchedToEdit = false
-
     try {
       const formData = new FormData()
       formData.append("file", file)
 
-      const response = await fetch("http://localhost:8000/audit", {
+      const response = await fetch("https://sanchez-v1.onrender.com/audit", {
         method: "POST",
         body: formData,
       })
@@ -109,29 +95,14 @@ export default function RAMSAuditor() {
               const dataStr = line.slice(6)
               const data = JSON.parse(dataStr)
               
-              if (data.analyze) {
-                const formatted = `### Analysis\n- Activities identified: ${data.analyze.activities.join(", ")}\n\n`
+              if (data.audit) {
+                const formatted = data.audit.report ? data.audit.report + "\n\n" : `### Audit Gaps\n${data.audit.gaps?.join("\n") || ""}\n\n`
                 setAuditResults(prev => prev + formatted)
-              } else if (data.retrieve) {
-                const formatted = `### CDM Requirements Retrieved\nFound ${data.retrieve.cdm_requirements.length} relevant clauses.\n\n`
-                setAuditResults(prev => prev + formatted)
-              } else if (data.audit) {
-                const formatted = `### Audit Gaps\n${data.audit.gaps.join("\n")}\n\n`
-                setAuditResults(prev => prev + formatted)
-              } else if (data.edit) {
-                const formatted = `### Final Report\n${data.edit.final_report}\n\n`
-                setEditResults(prev => prev + formatted)
-                // Switch to edit tab when edit results start coming in, but only once
-                if (!hasSwitchedToEdit) {
-                    setActiveTab("edit")
-                    hasSwitchedToEdit = true
-                }
               }
               
               // Auto-scroll
               setTimeout(() => {
                 auditEndRef.current?.scrollIntoView({ behavior: "smooth" })
-                editEndRef.current?.scrollIntoView({ behavior: "smooth" })
               }, 100)
               
             } catch (e) {
@@ -149,28 +120,13 @@ export default function RAMSAuditor() {
     }
   }
 
-  const handleSave = async (content: "audit" | "edit" | "both", format: "txt" | "docx") => {
-    let textToSave = ""
-    let filenamePrefix = ""
-
-    if (content === "audit") {
-        if (!auditResults) return
-        textToSave = auditResults
-        filenamePrefix = "audit-report"
-    } else if (content === "edit") {
-        if (!editResults) return
-        textToSave = editResults
-        filenamePrefix = "revised-rams"
-    } else {
-        if (!auditResults && !editResults) return
-        textToSave = `# Audit Report\n\n${auditResults}\n\n---\n\n# Revised RAMS\n\n${editResults}`
-        filenamePrefix = "full-rams-report"
-    }
-
-    const filename = `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}`
+  const handleSave = async (format: "txt" | "docx") => {
+    if (!auditResults) return
+    const textToSave = auditResults
+    const filename = `audit-report-${new Date().toISOString().slice(0, 10)}`
 
     try {
-      if (format === "txt") {
+        if (format === "txt") {
         const blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" })
         saveAs(blob, `${filename}.txt`)
       } else if (format === "docx") {
@@ -328,7 +284,7 @@ export default function RAMSAuditor() {
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={(!auditResults && !editResults) || isLoading}>
+                  <Button variant="outline" size="sm" disabled={!auditResults || isLoading}>
                     <Save className="mr-2 h-4 w-4" />
                     Save Report
                   </Button>
@@ -336,116 +292,41 @@ export default function RAMSAuditor() {
                 <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>Save Options</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    
-                    <DropdownMenuSub>
-                        <DropdownMenuSubTrigger disabled={!auditResults}>
-                            <FileText className="mr-2 h-4 w-4" />
-                            Audit Report
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                            <DropdownMenuItem onClick={() => handleSave("audit", "docx")}>
-                                <FileType className="mr-2 h-4 w-4" /> Word (DOCX)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSave("audit", "txt")}>
-                                <FileJson className="mr-2 h-4 w-4" /> Text (TXT)
-                            </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-
-                    <DropdownMenuSub>
-                        <DropdownMenuSubTrigger disabled={!editResults}>
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Revised RAMS
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                            <DropdownMenuItem onClick={() => handleSave("edit", "docx")}>
-                                <FileType className="mr-2 h-4 w-4" /> Word (DOCX)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSave("edit", "txt")}>
-                                <FileJson className="mr-2 h-4 w-4" /> Text (TXT)
-                            </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-
-                    <DropdownMenuSeparator />
-
-                    <DropdownMenuSub>
-                        <DropdownMenuSubTrigger disabled={!auditResults || !editResults}>
-                            <Save className="mr-2 h-4 w-4" />
-                            Save Both
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                            <DropdownMenuItem onClick={() => handleSave("both", "docx")}>
-                                <FileType className="mr-2 h-4 w-4" /> Word (DOCX)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSave("both", "txt")}>
-                                <FileJson className="mr-2 h-4 w-4" /> Text (TXT)
-                            </DropdownMenuItem>
-                        </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-
+                    <DropdownMenuItem onClick={() => handleSave("docx")}>
+                        <FileType className="mr-2 h-4 w-4" /> Word (DOCX)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSave("txt")}>
+                        <FileJson className="mr-2 h-4 w-4" /> Text (TXT)
+                    </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </CardHeader>
           <Separator />
           <CardContent className="flex-1 p-0 overflow-hidden relative">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-                <div className="px-6 pt-4">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="audit">Audit Findings</TabsTrigger>
-                        <TabsTrigger value="edit" disabled={!editResults && !isLoading}>Revised RAMS</TabsTrigger>
-                    </TabsList>
-                </div>
-
-                <TabsContent value="audit" className="flex-1 p-0 m-0 h-full overflow-hidden">
-                    <ScrollArea className="h-full w-full p-6">
-                        {auditResults ? (
-                            <MarkdownContent content={auditResults} endRef={auditEndRef} />
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-                                {isLoading ? (
-                                    <div className="flex flex-col items-center gap-4">
-                                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                                        <p>Analyzing document...</p>
-                                        <div className="w-full max-w-xs space-y-2">
-                                            <Skeleton className="h-4 w-full" />
-                                            <Skeleton className="h-4 w-[80%]" />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <FileText className="h-16 w-16 mb-4 opacity-20" />
-                                        <p>Upload a file and start the audit to see results here.</p>
-                                    </>
-                                )}
+            <ScrollArea className="h-full w-full p-6">
+                {auditResults ? (
+                    <MarkdownContent content={auditResults} endRef={auditEndRef} />
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+                        {isLoading ? (
+                            <div className="flex flex-col items-center gap-4">
+                                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                                <p>Analyzing document...</p>
+                                <div className="w-full max-w-xs space-y-2">
+                                    <Skeleton className="h-4 w-full" />
+                                    <Skeleton className="h-4 w-[80%]" />
+                                </div>
                             </div>
-                        )}
-                    </ScrollArea>
-                </TabsContent>
-
-                <TabsContent value="edit" className="flex-1 p-0 m-0 h-full overflow-hidden">
-                    <ScrollArea className="h-full w-full p-6">
-                        {editResults ? (
-                            <MarkdownContent content={editResults} endRef={editEndRef} />
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
-                                {isLoading ? (
-                                    <div className="flex flex-col items-center gap-4">
-                                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                                        <p>Generating revised RAMS...</p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <CheckCircle2 className="h-16 w-16 mb-4 opacity-20" />
-                                        <p>Revised RAMS will appear here after the audit is complete.</p>
-                                    </>
-                                )}
-                            </div>
+                            <>
+                                <FileText className="h-16 w-16 mb-4 opacity-20" />
+                                <p>Upload a file and start the audit to see results here.</p>
+                            </>
                         )}
-                    </ScrollArea>
-                </TabsContent>
-            </Tabs>
+                    </div>
+                )}
+            </ScrollArea>
           </CardContent>
         </Card>
       </div>
